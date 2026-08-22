@@ -1,102 +1,104 @@
 # AI Document Assistant
 
-AI Document Assistant is a FastAPI + Gemini backend with a Flutter frontend for asking questions about one or more uploaded PDF documents.
+AI Document Assistant is a full-stack PDF question-answering app built with a FastAPI backend, Gemini, and a Flutter Web frontend.
 
-## Overview
-
-The app lets a user upload PDFs, extracts and chunks the text, generates embeddings, retrieves the most relevant chunks for each question, and asks Gemini to answer only from the retrieved document context.
-
-The system supports:
-
-- multi-document sessions
-- conversational RAG for follow-up questions
-- top-k retrieval with similarity filtering
-- source tracking for retrieved chunks
-- a Flutter UI for upload and chat
+It supports multi-PDF conversational RAG, source citations, and PDF-aware answers grounded only in uploaded documents.
 
 ## Architecture
 
 ```text
-Flutter UI
-    |
-    | HTTP
-    v
-FastAPI Backend
-    |
-    +--> PDF extraction
-    |
-    +--> Chunking
-    |
-    +--> Gemini embeddings
-    |
-    +--> Similarity search
-    |
-    +--> Gemini answer generation
-    |
-    v
-Answer + sources
+Flutter
+  -> FastAPI
+  -> PDF Processing
+  -> Chunking
+  -> Gemini Embeddings
+  -> Similarity Search
+  -> Gemini RAG Answer
 ```
 
 ## Features
 
-- Upload multiple PDFs into the same session
-- Extract text from uploaded PDFs
-- Chunk text into retrievable passages
-- Generate Gemini embeddings
-- Retrieve top-k relevant chunks
-- Filter by similarity threshold
-- Use recent chat history to support follow-up questions
-- Return source filenames and page information when available
-- Clear the current session with one action
+- Conversational RAG with follow-up question support
+- Multi-PDF upload in a single session
+- Top-K retrieval with similarity threshold filtering
+- Source citations with filename and page metadata
+- PDF text extraction and chunking
+- Gemini embeddings for semantic search
+- FastAPI backend API
+- Flutter Web chat interface
+
+## How RAG Works
+
+1. Upload one or more PDFs.
+2. The backend extracts text and splits it into chunks.
+3. Gemini embeddings are generated for each chunk.
+4. A question is embedded and compared against all chunks.
+5. The top relevant chunks above the similarity threshold are selected.
+6. Gemini answers using only the retrieved context.
+7. Recent conversation history helps interpret follow-up questions, but the PDF content remains the only source of truth.
+
+## Project Structure
+
+```text
+project1-openai-chatbot/
+  main.py
+  requirements.txt
+  .env.example
+  README.md
+  pdf_rag.py
+  chunking.py
+  chunked_rag.py
+  semantic_search.py
+  embeddings.py
+  rag.py
+  structured_output.py
+  memory.json
+  voucher.pdf
+
+ai_document_assistant/
+  lib/
+    main.dart
+    models/
+    screens/
+    services/
+    widgets/
+  android/
+  ios/
+  web/
+  macos/
+  linux/
+  windows/
+  pubspec.yaml
+```
 
 ## Tech Stack
 
 - Python
 - FastAPI
-- Pydantic
 - pypdf
 - NumPy
 - google-genai
 - Flutter
-- http
-- file_picker
+- Dart
+- HTTP multipart upload
 
 ## Local Setup
 
-### Backend Setup
-
-1. Create and activate a virtual environment.
-2. Install dependencies:
+### Backend
 
 ```bash
+cd project1-openai-chatbot
 pip install -r requirements.txt
-```
-
-3. Create a `.env` file in `project1-openai-chatbot/`:
-
-```env
-GEMINI_API_KEY=your_gemini_api_key
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:8000
-```
-
-4. Run the backend:
-
-```bash
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### Flutter Setup
+Create a `.env` file from `.env.example` and set `GEMINI_API_KEY`.
 
-1. Open the `ai_document_assistant` project.
-2. Get dependencies:
+### Flutter Web
 
 ```bash
+cd ai_document_assistant
 flutter pub get
-```
-
-3. Run the app:
-
-```bash
 flutter run -d chrome
 ```
 
@@ -104,42 +106,28 @@ flutter run -d chrome
 
 ### FastAPI Backend
 
-Use a production ASGI server such as `uvicorn` behind a reverse proxy or platform router.
+Run the backend behind a production ASGI server and host it on a public HTTPS endpoint.
 
-Example:
+Recommended deployment steps:
 
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-Recommended production settings:
-
-- Set `GEMINI_API_KEY` in the hosting environment, not in code
-- Set `CORS_ORIGINS` to your deployed Flutter Web domain
-- Keep the backend on HTTPS in production
-- Do not expose `.env` or uploaded PDFs
-- Store only the backend service URL in the Flutter app
-
-If you deploy behind a proxy or load balancer, make sure the proxy forwards requests to the FastAPI port and preserves request body sizes large enough for PDF uploads.
+1. Set environment variables in your hosting platform.
+2. Install backend dependencies from `requirements.txt`.
+3. Launch the app with `uvicorn main:app --host 0.0.0.0 --port 8000`.
+4. Set `CORS_ORIGINS` to your deployed Flutter Web domain.
+5. Keep `GEMINI_API_KEY` only in backend secrets or environment settings.
 
 ### Flutter Web Frontend
 
-Build the web app for production:
+Build the frontend for production:
 
 ```bash
+cd ai_document_assistant
 flutter build web
 ```
 
-Deploy the generated `build/web` directory to your static hosting platform of choice.
+Deploy the generated `build/web` folder to a static host.
 
-Recommended production settings:
-
-- Point the Flutter app to the deployed backend URL
-- Use the backend HTTPS URL in the app's API base URL
-- Allow the frontend origin in `CORS_ORIGINS`
-- Serve the web app over HTTPS
-
-If you change the backend base URL for production, update the Flutter `ApiService` base URL accordingly before building the web bundle.
+Before building, make sure the Flutter app points to the production backend URL.
 
 ## Environment Variables
 
@@ -148,9 +136,7 @@ Backend only:
 - `GEMINI_API_KEY`
 - `CORS_ORIGINS`
 
-The Flutter app never receives the Gemini API key.
-
-For production, configure these variables in your hosting provider's secret or environment settings rather than in a checked-in file.
+The Gemini key is never exposed to Flutter.
 
 ## API Endpoints
 
@@ -160,17 +146,18 @@ Health check.
 
 ### `POST /upload`
 
-Upload a PDF file as multipart form data.
+Upload one PDF at a time as multipart form data.
 
-Response includes:
+Response:
 
+- `message`
 - `filename`
 - `pages`
 - `chunks`
 
 ### `POST /ask`
 
-Request body:
+Request:
 
 ```json
 {
@@ -178,7 +165,7 @@ Request body:
 }
 ```
 
-Response includes:
+Response:
 
 - `question`
 - `answer`
@@ -186,31 +173,24 @@ Response includes:
 
 ### `GET /documents`
 
-Returns the uploaded document list for the current session.
+Returns the list of uploaded PDFs in the current session.
 
 ### `POST /clear`
 
-Clears uploaded documents and conversation memory.
-
-## How RAG Works
-
-1. PDF text is extracted with `pypdf`.
-2. The text is chunked into smaller passages.
-3. Gemini embeddings are generated for each chunk.
-4. A user question is embedded.
-5. The backend computes cosine similarity across all uploaded document chunks.
-6. The top `TOP_K` chunks are selected.
-7. Only chunks above `SIMILARITY_THRESHOLD` are used as context.
-8. Gemini answers using only the retrieved context.
-9. Recent chat history is included only to interpret follow-up questions, not as source material.
-
-If no retrieved chunk is relevant enough, the backend returns a "not enough information" response without calling Gemini.
+Clears uploaded PDFs, chunks, embeddings, and conversation memory.
 
 ## Screenshots
 
-Add screenshots of:
+Store the screenshots in `project1-openai-chatbot/assets/screenshots/` and reference them here:
 
-- the upload state
-- the document list
-- a question/answer chat
-- the clear/new document state
+### Upload State
+![Upload state](./assets/screenshots/upload-state.png)
+
+### Uploaded Document List
+![Uploaded document list](./assets/screenshots/uploaded-document-list.png)
+
+### Chat Conversation With Citations
+![Chat conversation with citations](./assets/screenshots/chat-conversation-citations.png)
+
+### Clear/New Document State
+![Clear/new document state](./assets/screenshots/clear-new-document-state.png)
